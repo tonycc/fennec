@@ -1,0 +1,51 @@
+{
+  "name": "fennec",
+  "version": "1.0.0",
+  "description": "企业级后台管理系统框架",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w frontend",
+    "server": "npm run dev -w backend",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "npm run dev -w backend",
+    "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend",
+    "build:shared": "npm run build -w shared",
+    "build:backend": "npm run build -w backend",
+    "build:frontend": "npm run build -w frontend",
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "test:backend": "npm run test -w backend",
+    "test:frontend": "npm run test -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend && npm run lint -w shared",
+    "lint:fix": "npm run lint:fix -w backend && npm run lint:fix -w frontend && npm run lint:fix -w shared",
+    "clean": "npm run clean -w backend && npm run clean -w frontend && npm run clean -w shared",
+    "install:all": "npm install && npm install -w frontend && npm install -w backend && npm install -w shared"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "admin",
+    "dashboard",
+    "react",
+    "nodejs",
+    "typescript",
+    "monorepo"
+  ],
+  "author": "Fennec Team",
+  "license": "MIT"
+}

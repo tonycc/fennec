@@ -1,0 +1,339 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 注意：SQLite 不支持枚举，所以使用字符串类型
+// 部门职位值：MANAGER, DEPUTY_MANAGER, SUPERVISOR, TEAM_LEAD, 
+// SENIOR_EMPLOYEE, EMPLOYEE, JUNIOR_EMPLOYEE, INTERN, 
+// CONSULTANT, SPECIALIST, ASSISTANT, COORDINATOR
+
+// 用户表
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  avatar    String?
+  isActive  Boolean  @default(true)
+  lastLoginAt DateTime?
+  departmentId String? // 主部门ID
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  userRoles UserRole[]
+  refreshTokens RefreshToken[]
+  systemLogs SystemLog[]
+  auditLogs AuditLog[]
+  notifications Notification[]
+  sentMessages Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+  announcementReads AnnouncementRead[]
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  userDepartments UserDepartment[]
+  managedDepartments Department[] @relation("DepartmentManager")
+
+  @@map("users")
+}
+
+// 角色表
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String?  @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  userRoles UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+// 权限表
+model Permission {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  resource    String
+  action      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+// 用户角色关联表
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// 角色权限关联表
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// 部门表
+model Department {
+  id          String   @id @default(cuid())
+  name        String
+  code        String?  @unique
+  description String?
+  parentId    String?  // 上级部门ID
+  managerId   String?  // 部门负责人ID
+  level       Int      @default(1) // 部门层级，1为一级部门，2为二级部门，依此类推
+  sort        Int      @default(0) // 排序字段
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  parent     Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Department[] @relation("DepartmentHierarchy")
+  manager    User?        @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  users      User[]       // 主部门用户
+  userDepartments UserDepartment[] // 多部门关联
+
+  @@map("departments")
+}
+
+// 用户部门关联表（支持用户属于多个部门）
+model UserDepartment {
+  id           String   @id @default(cuid())
+  userId       String
+  departmentId String
+  position     String   // 在该部门的职位（字符串类型，值见上方注释）
+  isMain       Boolean  @default(false) // 是否为主部门
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+  @@map("user_departments")
+}
+
+// 刷新令牌表
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// 系统设置表
+model SystemSettings {
+  id                      String   @id @default(cuid())
+  siteName                String   @default("Fennec 管理系统")
+  siteDescription         String?  @default("基于 React 19 的现代化管理系统")
+  enableRegistration      Boolean  @default(false)
+  enableEmailNotification Boolean  @default(true)
+  sessionTimeout          Int      @default(30)
+  maxLoginAttempts        Int      @default(5)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// 系统日志表
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     String   // info, warn, error, debug
+  message   String
+  module    String?  // 模块名称
+  action    String?  // 操作类型
+  details   String?  // 详细信息 (JSON)
+  userId    String?  // 操作用户ID
+  ip        String?  // IP地址
+  userAgent String?  // 用户代理
+  createdAt DateTime @default(now())
+
+  // 关联关系
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("system_logs")
+}
+
+// 审计日志表
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  resource   String   // 资源类型: user, role, permission, etc.
+  resourceId String?  // 资源ID
+  oldValues  String?  // 修改前的值 (JSON)
+  newValues  String?  // 修改后的值 (JSON)
+  userId     String?  // 操作用户ID
+  ip         String?  // IP地址
+  userAgent  String?  // 用户代理
+  success    Boolean  @default(true) // 操作是否成功
+  errorMsg   String?  // 错误信息
+  createdAt  DateTime @default(now())
+
+  // 关联关系
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// 通知表
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // system, email, sms, push
+  title     String
+  content   String
+  priority  String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  data      String?  // 额外数据 (JSON)
+  userId    String   // 接收用户ID
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// 站内消息表
+model Message {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  type       String   @default("normal") // normal, urgent, system
+  senderId   String?  // 发送者ID，系统消息时为null
+  receiverId String   // 接收者ID
+  isRead     Boolean  @default(false)
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // 关联关系
+  sender   User? @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  receiver User  @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// 系统公告表
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  type        String   @default("info") // info, warning, success, error
+  priority    String   @default("normal") // low, normal, high, urgent
+  isActive    Boolean  @default(true)
+  publishAt   DateTime @default(now())
+  expireAt    DateTime?
+  targetUsers String?  // 目标用户，JSON数组，null表示所有用户
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  reads AnnouncementRead[]
+
+  @@map("announcements")
+}
+
+// 公告阅读记录表
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  // 关联关系
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@map("announcement_reads")
+}
+
+// 邮件模板表
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  subject     String
+  content     String   // HTML内容
+  variables   String?  // 可用变量说明 (JSON)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+// 邮件发送记录表
+model EmailLog {
+  id          String   @id @default(cuid())
+  to          String
+  subject     String
+  content     String
+  templateId  String?
+  status      String   @default("pending") // pending, sent, failed
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("email_logs")
+}
+
+// 邮件队列表
+model EmailQueue {
+  id             String   @id @default(cuid())
+  to             String
+  subject        String
+  content        String
+  templateId     String?
+  templateData   String?  // JSON格式的模板数据
+  priority       String   @default("normal") // low, normal, high, urgent
+  maxRetries     Int      @default(3)
+  currentRetries Int      @default(0)
+  scheduledAt    DateTime @default(now())
+  status         String   @default("pending") // pending, processing, sent, failed
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("email_queue")
+}
